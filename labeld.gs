@@ -123,7 +123,7 @@ function setupGmailLabels() {
       for (var i = 0 ; i < userFilters.filter.length ; i++) {
 
         // try to find the labelID previously retrieved in the addLabelIds action
-        if ( (userFilters.filter[i].action.addLabelIds) && userFilters.filter[i].action.addLabelIds.length > 0) {
+        if ( (userFilters.filter[i].action) && (userFilters.filter[i].action.addLabelIds) && userFilters.filter[i].action.addLabelIds.length > 0) {
 
           // loop through all label IDs
           for (var x = 0 ; x < userFilters.filter[i].action.addLabelIds.length ; x++) {

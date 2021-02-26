@@ -182,7 +182,8 @@ function createGmailFilters(labelID) {
           ],
         },
         "criteria": {
-          "from": targetFrom[i]
+          "from": targetFrom[i],
+          "subject": targetFilters[i]
         }
       },
       "me"

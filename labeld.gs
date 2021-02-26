@@ -274,24 +274,32 @@ function applyGmailLabels(labelID) {
 function initSheet(sheet) {
 
   // Defines headers for the table if non-existent
-  if (sheet.getRange("A1").getValue() != "User") {
-    sheet.getRange("A1").setValue("User")  
+  if (sheet.getRange("A1").getValue() != "From") {
+    sheet.getRange("A1").setValue("From")  
   }
   
-  if (sheet.getRange("B1").getValue() != "Time") {
-    sheet.getRange("B1").setValue("Time")  
+  if (sheet.getRange("B1").getValue() != "To") {
+    sheet.getRange("B1").setValue("To")  
   }
   
-  if (sheet.getRange("C1").getValue() != "Message") {
-    sheet.getRange("C1").setValue("Message")  
+  if (sheet.getRange("C1").getValue() != "Snippet") {
+    sheet.getRange("C1").setValue("Snippet")  
   }
   
-  if (sheet.getRange("D1").getValue() != "ID") {
-    sheet.getRange("D1").setValue("ID")  
+  if (sheet.getRange("D1").getValue() != "Time") {
+    sheet.getRange("D1").setValue("Time")  
   }
   
-  if (sheet.getRange("E1").getValue() != "Unix timestamp") {
-    sheet.getRange("E1").setValue("Unix timestamp")  
+  if (sheet.getRange("E1").getValue() != "Message") {
+    sheet.getRange("E1").setValue("Message")  
+  }
+  
+  if (sheet.getRange("F1").getValue() != "ID") {
+    sheet.getRange("F1").setValue("ID")  
+  }
+  
+  if (sheet.getRange("G1").getValue() != "Unix timestamp") {
+    sheet.getRange("G1").setValue("Unix timestamp")  
   }
   console.log("Initialized spreadsheet's headers")
 
@@ -441,6 +449,11 @@ function getLatestMessages(NewUser) {
             if (response.payload.headers[x].name == 'Subject') {
               var subject = response.payload.headers[x].value
             }
+            
+            // grab the From header into a variable
+            if (response.payload.headers[x].name == 'From') {
+              var from = response.payload.headers[x].value
+            }
 
             // grab the To header into a variable
             if (response.payload.headers[x].name == 'To') {
@@ -448,13 +461,17 @@ function getLatestMessages(NewUser) {
             }
           }
           
+          var snippet = response.snippet
+          
           // compose a new message object with all the metadata
           message = {
                 id: response.id,
                 unix: response.internalDate,
                 time: new Date(response.internalDate * 1),
                 subj: subject,
-                to: to
+                to: to,
+                from: from,
+                snip: snippet
               }
           
           // add the new message object to the entries array
@@ -548,8 +565,10 @@ function runGmailLabelQuery(NewUser) {
       // add it to the Sheet
       pushToSheets(
         sheet,
-        nextRow, 
+        nextRow,
+        newContent[i].from,
         newContent[i].to,
+        newContent[i].snip,
         newContent[i].time,
         newContent[i].subj,
         newContent[i].id,
@@ -564,12 +583,14 @@ function runGmailLabelQuery(NewUser) {
 
 // pushToSheets function will have the boilerplate code to add 
 // the input data to Sheets, with the desired formatting
-function pushToSheets(sheet, newRow, to, time, subj, id, unix) {
-  sheet.getRange(newRow, 1).setValue(to);
-  sheet.getRange(newRow, 2).setValue(time);
-  sheet.getRange(newRow, 2).setNumberFormat("dd/MM/yyyy HH:MM:SS");
-  sheet.getRange(newRow, 3).setValue(subj);
-  sheet.getRange(newRow, 4).setValue(id);
-  sheet.getRange(newRow, 5).setValue(unix);
-  sheet.getRange(newRow, 5).setNumberFormat("0000000000000");
+function pushToSheets(sheet, newRow, from, to, snip, time, subj, id, unix) {
+  sheet.getRange(newRow, 1).setValue(from);
+  sheet.getRange(newRow, 2).setValue(to);
+  sheet.getRange(newRow, 3).setValue(snip);
+  sheet.getRange(newRow, 4).setValue(time);
+  sheet.getRange(newRow, 4).setNumberFormat("dd/MM/yyyy HH:MM:SS");
+  sheet.getRange(newRow, 5).setValue(subj);
+  sheet.getRange(newRow, 6).setValue(id);
+  sheet.getRange(newRow, 7).setValue(unix);
+  sheet.getRange(newRow, 7).setNumberFormat("0000000000000");
 }

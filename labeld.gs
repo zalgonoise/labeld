@@ -356,7 +356,7 @@ function gmailMessageQueryShort() {
 
     // push the ID for the message into the messages array
     response.messages.forEach(function(message) {
-      messages.push(message.id)
+      messages.push(message)
     });
   }
     pageToken = response.nextPageToken;
@@ -389,7 +389,7 @@ function gmailMessageQueryLong() {
 
     // push the ID for the message into the messages array
     response.messages.forEach(function(message) {
-      messages.push(message.id)
+      messages.push(message)
     });
   }
     pageToken = response.nextPageToken;
@@ -404,6 +404,7 @@ function gmailMessageQueryLong() {
 function getLatestMessages(NewUser) {
 
   var entries = [];
+  var usedThreadIDs = [];
   var message = {};
 
   if (NewUser == true) {
@@ -425,31 +426,40 @@ function getLatestMessages(NewUser) {
       // if the response is not null
       if (response) {
 
-        // iterate through its headers
-        for (var x = 0 ; x < response.payload.headers.length ; x++) {
+        // do not reuse threadID's, to avoid repeated entries
+        if (usedThreadIDs.includes(response.threadId))  {
+          continue
+        } else {
 
-          // grab the Subject header into a variable
-          if (response.payload.headers[x].name == 'Subject') {
-            var subject = response.payload.headers[x].value
-          }
+          // push new threadID to array
+          usedThreadIDs.push(response.threadId)
+          
+          // iterate through its headers
+          for (var x = 0 ; x < response.payload.headers.length ; x++) {
 
-          // grab the To header into a variable
-          if (response.payload.headers[x].name == 'To') {
-            var to = response.payload.headers[x].value
-          }
-        }
-        
-        // compose a new message object with all the metadata
-        message = {
-              id: response.id,
-              unix: response.internalDate,
-              time: new Date(response.internalDate * 1),
-              subj: subject,
-              to: to
+            // grab the Subject header into a variable
+            if (response.payload.headers[x].name == 'Subject') {
+              var subject = response.payload.headers[x].value
             }
-        
-        // add the new message object to the entries array
-        entries.push(message)
+
+            // grab the To header into a variable
+            if (response.payload.headers[x].name == 'To') {
+              var to = response.payload.headers[x].value
+            }
+          }
+          
+          // compose a new message object with all the metadata
+          message = {
+                id: response.id,
+                unix: response.internalDate,
+                time: new Date(response.internalDate * 1),
+                subj: subject,
+                to: to
+              }
+          
+          // add the new message object to the entries array
+          entries.push(message)
+        }
       }
     }
   }

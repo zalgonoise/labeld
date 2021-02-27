@@ -30,6 +30,10 @@ const targetSources = [
   "System"
 ]
 
+// regular expression reference to find a certain string in a 
+// message's snippet
+const targetSourceRegexp = RegExp('.+ has deleted the file .+')
+
 // shortQuery and longQuery variables will define a default amount of time 
 // to look back in Gmail 
 const shortQuery = " newer_than:7d"
@@ -69,8 +73,7 @@ function newUserSetup() {
 
   // populate the spreadsheet for the first time
   // with all possible results
-  NewUser = true
-  runGmailLabelQuery(NewUser)
+  runGmailLabelQuery()
 
   // get active user
   activeUser = Session.getActiveUser()
@@ -202,6 +205,7 @@ function createGmailFilters(labelID) {
       },
       "me"
     )
+    Logger.log('Created filter for ' + targetFrom[i] + ' using label ' + labelID)
   }
 }
 
@@ -237,6 +241,7 @@ function applyGmailLabels(labelID) {
       pageToken = page.nextPageToken;
     } while (pageToken)
   }
+  Logger.log('Grabbed' + messages.length +  'message batches with the query')
   
   // to retrieve only the messageIDs (from an object with .id and .threadId)
   // the fastest method is to refer to C-style for-loops
@@ -280,6 +285,7 @@ function applyGmailLabels(labelID) {
       },
       'me'
     )
+    Logger.log('Applied label to message batch #' + a)
   }
 }
 
@@ -323,7 +329,7 @@ function initSheet(sheet) {
   if (sheet.getRange("I1").getValue() != "Unix timestamp") {
     sheet.getRange("I1").setValue("Unix timestamp")  
   }
-  console.log("Initialized spreadsheet's headers")
+  Logger.log("Initialized spreadsheet's headers")
 
 }
 
@@ -354,7 +360,7 @@ function getLatest(sheet) {
   // In case there are no entries, all messages are fetched
   if (!lastValue) {
     var lastValue = 0
-    console.log("No values found. Fetching all that is reachable")
+    Logger.log("No values found. Fetching all that is reachable")
   }
     
   // Returns both the blank row number 
@@ -362,9 +368,9 @@ function getLatest(sheet) {
   return [blankRow, lastValue]
 }
 
-// gmailMessageQueryShort function will query Gmail messages
-// for the set label, for the last 7 days
-function gmailMessageQueryShort() {
+// gmailMessageQuery function will query Gmail messages
+// for the set label, for the set number of days as per input
+function gmailMessageQuery(newerThan) {
   var messages = [];
   var pageToken;
 
@@ -376,40 +382,7 @@ function gmailMessageQueryShort() {
     var response = Gmail.Users.Messages.list(
     'me', 
       {
-        "q": "label:" + labelTag + shortQuery,
-        "pageToken": pageToken
-      }
-    );
-
-  // if the response is not null, and lists out 1 or more results
-  if (response.messages && response.messages.length > 0) {
-
-    // push the ID for the message into the messages array
-    response.messages.forEach(function(message) {
-      messages.push(message)
-    });
-  }
-    pageToken = response.nextPageToken;
-  } while (pageToken);
-
-  return messages
-}
-
-// gmailMessageQueryLong function will query Gmail messages
-// for the set label, for the last 9999 days
-function gmailMessageQueryLong() {
-  var messages = [];
-  var pageToken;
-
-  // iterate through all pages (...while a nextPageToken exists)
-  do {
-
-    // list all the messages with the following query:
-    //     label:{labelTag},newer_than:{days}d
-    var response = Gmail.Users.Messages.list(
-    'me', 
-      {
-        "q": "label:" + labelTag + longQuery,
+        "q": "label:" + labelTag + newerThan,
         "pageToken": pageToken
       }
     );
@@ -438,9 +411,9 @@ function getLatestMessages(NewUser) {
   var message = {};
 
   if (NewUser == true) {
-    messages = gmailMessageQueryLong()
+    messages = gmailMessageQuery(longQuery)
   } else {
-    messages = gmailMessageQueryShort()
+    messages = gmailMessageQuery(shortQuery)
   }
   
 
@@ -510,15 +483,12 @@ function getLatestMessages(NewUser) {
 
 // runGmailLabelQuery function will run a query
 // and populate the Sheet with the retrieved data
-function runGmailLabelQuery(NewUser) {
-
-  // get the newContent from a new Gmail query
-  newContent = getLatestMessages(NewUser);
+function runGmailLabelQuery() {
 
   // get the active user
   activeUser = Session.getActiveUser()
 
-  Logger.log(activeUser)
+  Logger.log('Setting up Sheet for: %s', activeUser)
 
   // Open the associated Spreadsheet and added Sheets
   var file = SpreadsheetApp.getActiveSpreadsheet();
@@ -559,8 +529,6 @@ function runGmailLabelQuery(NewUser) {
     }
   } while (setSheet == false) 
   
-  
-
   // First checks whether the Sheet is new and initialize it
   if (sheet.getRange("A1").getValue() === "") {
     Logger.log("Sheet seems blank, initializing.")
@@ -578,6 +546,14 @@ function runGmailLabelQuery(NewUser) {
   Logger.log("nextRow: " + nextRow)
   Logger.log("latestID: " + latestID)
 
+  // grab all entries when the Sheet is empty
+  if ( latestID = 0 ) {
+    NewUser = true
+  }
+
+  // get the newContent from a new Gmail query
+  newContent = getLatestMessages(NewUser);
+
   // iterate from last to first, through newContent
   for (var i = (newContent.length - 1) ; i >= 0 ; i-- ) {
 
@@ -591,6 +567,12 @@ function runGmailLabelQuery(NewUser) {
           var taskSource = targetSources[x];
           break
         }
+      }
+      
+      // exceptions in case it's necessary to look into the 
+      // message snippet to apply a different target source
+      if (taskType = targetTypes[1] && newContent[i].snippet.match(targetSourceRegexp)) {
+        taskSource = targetSources[2];
       }
 
       // add it to the Sheet

@@ -1,0 +1,28 @@
+{
+  "timeZone": "America/New_York",
+  "dependencies": {
+    "enabledAdvancedServices": [
+      {
+        "userSymbol": "Gmail",
+        "version": "v1",
+        "serviceId": "gmail"
+      }
+    ]
+  },
+  "exceptionLogging": "STACKDRIVER",
+  "runtimeVersion": "V8",
+  "sheets": {
+    "macros": [
+      {
+        "menuName": "Punch in",
+        "functionName": "newUserSetup",
+        "defaultShortcut": "Ctrl+Alt+s"
+      },
+      {
+        "menuName": "Run",
+        "functionName": "runGmailLabelQuery",
+        "defaultShortcut": "Ctrl+Shift+x"
+      }
+    ]
+  }
+}

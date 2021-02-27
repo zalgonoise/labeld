@@ -16,6 +16,20 @@ const targetFilters = [
   "Alert: "
 ]
 
+// The list of task types as per targetFrom's indexes
+const targetTypes = [
+  "Research",
+  "Investigation",
+  "Troubleshooting"
+]
+
+// the list of task sources as per targetFrom's indexes
+const targetSources = [
+  "Team",
+  "System",
+  "System"
+]
+
 // shortQuery and longQuery variables will define a default amount of time 
 // to look back in Gmail 
 const shortQuery = " newer_than:7d"
@@ -286,20 +300,28 @@ function initSheet(sheet) {
     sheet.getRange("C1").setValue("Snippet")  
   }
   
-  if (sheet.getRange("D1").getValue() != "Time") {
-    sheet.getRange("D1").setValue("Time")  
+  if (sheet.getRange("D1").getValue() != "Task Type") {
+    sheet.getRange("D1").setValue("Task Type")  
   }
   
-  if (sheet.getRange("E1").getValue() != "Message") {
-    sheet.getRange("E1").setValue("Message")  
+  if (sheet.getRange("E1").getValue() != "Task Source") {
+    sheet.getRange("E1").setValue("Task Source")  
   }
   
-  if (sheet.getRange("F1").getValue() != "ID") {
-    sheet.getRange("F1").setValue("ID")  
+  if (sheet.getRange("F1").getValue() != "Time") {
+    sheet.getRange("F1").setValue("Time")  
   }
   
-  if (sheet.getRange("G1").getValue() != "Unix timestamp") {
-    sheet.getRange("G1").setValue("Unix timestamp")  
+  if (sheet.getRange("G1").getValue() != "Message") {
+    sheet.getRange("G1").setValue("Message")  
+  }
+  
+  if (sheet.getRange("H1").getValue() != "ID") {
+    sheet.getRange("H1").setValue("ID")  
+  }
+  
+  if (sheet.getRange("I1").getValue() != "Unix timestamp") {
+    sheet.getRange("I1").setValue("Unix timestamp")  
   }
   console.log("Initialized spreadsheet's headers")
 
@@ -452,7 +474,17 @@ function getLatestMessages(NewUser) {
             
             // grab the From header into a variable
             if (response.payload.headers[x].name == 'From') {
-              var from = response.payload.headers[x].value
+              var sender = response.payload.headers[x].value
+
+              // define task type and task provider as per sender
+              for (var x = 0 ; x < targetFrom.length ; x++) {
+                Logger.log('Matching: %s with %s', targetFrom[x], newContent[i].sender)
+                if (sender.match(RegExp(targetFrom[x]))) {
+                  var taskType = targetTypes[x];
+                  var taskSource = targetSources[x];
+                  break
+                }
+              }
             }
 
             // grab the To header into a variable
@@ -470,8 +502,10 @@ function getLatestMessages(NewUser) {
                 time: new Date(response.internalDate * 1),
                 subj: subject,
                 to: to,
-                from: from,
-                snip: snippet
+                sender: sender,
+                taskType: taskType,
+                taskSource: taskSource,
+                snippet: snippet
               }
           
           // add the new message object to the entries array
@@ -558,7 +592,7 @@ function runGmailLabelQuery(NewUser) {
 
   // iterate from last to first, through newContent
   for (var i = (newContent.length - 1) ; i >= 0 ; i-- ) {
-    
+
     // if the current message is newer than the lastest retrieved,
     if (newContent[i].unix > latestID) {
 
@@ -566,9 +600,11 @@ function runGmailLabelQuery(NewUser) {
       pushToSheets(
         sheet,
         nextRow,
-        newContent[i].from,
+        newContent[i].sender,
         newContent[i].to,
-        newContent[i].snip,
+        newContent[i].snippet,
+        newContent[i].taskType,
+        newContent[i].taskSource,
         newContent[i].time,
         newContent[i].subj,
         newContent[i].id,
@@ -583,14 +619,16 @@ function runGmailLabelQuery(NewUser) {
 
 // pushToSheets function will have the boilerplate code to add 
 // the input data to Sheets, with the desired formatting
-function pushToSheets(sheet, newRow, from, to, snip, time, subj, id, unix) {
-  sheet.getRange(newRow, 1).setValue(from);
+function pushToSheets(sheet, newRow, sender, to, snippet, taskType, taskSource, time, subj, id, unix) {
+  sheet.getRange(newRow, 1).setValue(sender);
   sheet.getRange(newRow, 2).setValue(to);
-  sheet.getRange(newRow, 3).setValue(snip);
-  sheet.getRange(newRow, 4).setValue(time);
-  sheet.getRange(newRow, 4).setNumberFormat("dd/MM/yyyy HH:MM:SS");
-  sheet.getRange(newRow, 5).setValue(subj);
-  sheet.getRange(newRow, 6).setValue(id);
-  sheet.getRange(newRow, 7).setValue(unix);
-  sheet.getRange(newRow, 7).setNumberFormat("0000000000000");
+  sheet.getRange(newRow, 3).setValue(snippet);
+  sheet.getRange(newRow, 4).setValue(taskType);
+  sheet.getRange(newRow, 5).setValue(taskSource);
+  sheet.getRange(newRow, 6).setValue(time);
+  sheet.getRange(newRow, 6).setNumberFormat("dd/MM/yyyy HH:MM:SS");
+  sheet.getRange(newRow, 7).setValue(subj);
+  sheet.getRange(newRow, 8).setValue(id);
+  sheet.getRange(newRow, 9).setValue(unix);
+  sheet.getRange(newRow, 9).setNumberFormat("0000000000000");
 }

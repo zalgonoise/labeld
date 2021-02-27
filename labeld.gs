@@ -334,7 +334,7 @@ function getLatest(sheet) {
   // Getting the latest value present in the sheet 
   // by looking through all the Unix Timestamp cells
   // and storing the last value
-  var range = "E2:E50000"
+  var range = "I2:I50000"
   var cells = sheet.getRange(range).getValues();
   
   // Loops through each cell and stores its value 
@@ -475,15 +475,6 @@ function getLatestMessages(NewUser) {
             // grab the From header into a variable
             if (response.payload.headers[x].name == 'From') {
               var sender = response.payload.headers[x].value
-
-              // define task type and task provider as per sender
-              for (var x = 0 ; x < targetFrom.length ; x++) {
-                if (sender.match(RegExp(targetFrom[x]))) {
-                  var taskType = targetTypes[x];
-                  var taskSource = targetSources[x];
-                  break
-                }
-              }
             }
 
             // grab the To header into a variable
@@ -491,7 +482,7 @@ function getLatestMessages(NewUser) {
               var to = response.payload.headers[x].value
             }
           }
-          
+
           var snippet = response.snippet
           
           // compose a new message object with all the metadata
@@ -502,8 +493,6 @@ function getLatestMessages(NewUser) {
                 subj: subject,
                 to: to,
                 sender: sender,
-                taskType: taskType,
-                taskSource: taskSource,
                 snippet: snippet
               }
           
@@ -595,6 +584,15 @@ function runGmailLabelQuery(NewUser) {
     // if the current message is newer than the lastest retrieved,
     if (newContent[i].unix > latestID) {
 
+      // define task type and task provider as per sender
+      for (var x = 0 ; x < targetFrom.length ; x++) {
+        if (newContent[i].sender.match(RegExp(targetFrom[x]))) {
+          var taskType = targetTypes[x];
+          var taskSource = targetSources[x];
+          break
+        }
+      }
+
       // add it to the Sheet
       pushToSheets(
         sheet,
@@ -602,8 +600,8 @@ function runGmailLabelQuery(NewUser) {
         newContent[i].sender,
         newContent[i].to,
         newContent[i].snippet,
-        newContent[i].taskType,
-        newContent[i].taskSource,
+        taskType,
+        taskSource,
         newContent[i].time,
         newContent[i].subj,
         newContent[i].id,

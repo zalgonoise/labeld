@@ -478,7 +478,6 @@ function getLatestMessages(NewUser) {
 
               // define task type and task provider as per sender
               for (var x = 0 ; x < targetFrom.length ; x++) {
-                Logger.log('Matching: %s with %s', targetFrom[x], newContent[i].sender)
                 if (sender.match(RegExp(targetFrom[x]))) {
                   var taskType = targetTypes[x];
                   var taskSource = targetSources[x];

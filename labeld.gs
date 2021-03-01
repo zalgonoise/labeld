@@ -374,6 +374,7 @@ function gmailMessageQuery(newerThan) {
   var messages = [];
   var pageToken;
 
+  Logger.log('Fetching messages with newer_than filter: %s', newerThan)
   // iterate through all pages (...while a nextPageToken exists)
   do {
 
@@ -411,8 +412,10 @@ function getLatestMessages(NewUser) {
   var message = {};
 
   if (NewUser == true) {
+    Logger.log('Fetching messages with a long query.')
     messages = gmailMessageQuery(longQuery)
   } else {
+    Logger.log('Fetching messages with a long query.')
     messages = gmailMessageQuery(shortQuery)
   }
   
@@ -477,7 +480,7 @@ function getLatestMessages(NewUser) {
   }
 
   // return the entries
-  Logger.log(entries)
+  Logger.log(entries.length)
   return entries
 }
 
@@ -547,33 +550,37 @@ function runGmailLabelQuery() {
   Logger.log("latestID: " + latestID)
 
   // grab all entries when the Sheet is empty
-  if ( latestID = 0 ) {
+  if ( latestID == 0 ) {
     NewUser = true
+    Logger.log('No entries found, setting NewUser to: %s', NewUser)
   }
 
   // get the newContent from a new Gmail query
   newContent = getLatestMessages(NewUser);
+  var taskType
+  var taskSource
+
 
   // iterate from last to first, through newContent
   for (var i = (newContent.length - 1) ; i >= 0 ; i-- ) {
 
     // if the current message is newer than the lastest retrieved,
-    if (newContent[i].unix > latestID) {
+    if ((newContent[i].unix / 1000) > (latestID / 1000)) {
 
       // define task type and task provider as per sender
       for (var x = 0 ; x < targetFrom.length ; x++) {
         if (newContent[i].sender.match(RegExp(targetFrom[x]))) {
-          var taskType = targetTypes[x];
-          var taskSource = targetSources[x];
-          break
+          var taskType = targetTypes[x]
+          var taskSource = targetSources[x]
         }
       }
-      
+
       // exceptions in case it's necessary to look into the 
       // message snippet to apply a different target source
-      if (taskType = targetTypes[1] && newContent[i].snippet.match(targetSourceRegexp)) {
+      if (taskType == targetTypes[1] && newContent[i].snippet.match(RegExp(targetSourceRegexp))) {
         taskSource = targetSources[2];
-      }
+      } 
+
 
       // add it to the Sheet
       pushToSheets(

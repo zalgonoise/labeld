@@ -427,10 +427,8 @@ function getLatestMessages(NewUser) {
     for (var i = 0 ; i < messages.length; i++) {
 
       // fetch each email message via its ID
-      var response = Gmail.Users.Messages.get('me', messages[i].id)
-
       // if the response is not null
-      if (response) {
+      if (response = Gmail.Users.Messages.get('me', messages[i].id)) {
 
         // do not reuse threadID's, to avoid repeated entries
         if (usedThreadIDs.includes(response.threadId))  {

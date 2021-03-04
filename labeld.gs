@@ -32,7 +32,12 @@ const targetSources = [
 
 // regular expression reference to find a certain string in a 
 // message's snippet
-const targetSourceRegexp = RegExp('.+ has deleted the file .+')
+const targetSourceRegexp = '.+ has deleted the file .+'
+const subjectIDRegexp = [
+  "^Invitation to edit .* ([0-9][0-9][0-9][0-9][0-9][0-9])$",
+  "^Rule triggered: .* ([0-9][0-9][0-9][0-9][0-9][0-9])$",
+  "^Alert: .* ([0-9][0-9][0-9][0-9][0-9][0-9])$"
+]
 
 // shortQuery and longQuery variables will define a default amount of time 
 // to look back in Gmail 
@@ -192,7 +197,6 @@ function createGmailFilters(labelID) {
       {
         "action": {
           "addLabelIds": [
-            "STARRED",
             "IMPORTANT",
             "CATEGORY_PERSONAL",
             labelID
@@ -329,6 +333,14 @@ function initSheet(sheet) {
   if (sheet.getRange("I1").getValue() != "Unix timestamp") {
     sheet.getRange("I1").setValue("Unix timestamp")  
   }
+  
+  if (sheet.getRange("J1").getValue() != "Reference ID") {
+    sheet.getRange("J1").setValue("Reference ID")  
+  }
+  
+  if (sheet.getRange("K1").getValue() != "Duplicate") {
+    sheet.getRange("K1").setValue("Duplicate")  
+  }
   Logger.log("Initialized spreadsheet's headers")
 
 }
@@ -368,6 +380,116 @@ function getLatest(sheet) {
   return [blankRow, lastValue]
 }
 
+
+// getLatestBacklog function will find references in the existing Sheets backlog
+// to match when its time to push the events into Sheets, marking as duplicate
+// those events that appear as repeated
+function getLatestBacklog(sheet, startRow, numRows) {
+
+  // define columns to pick data from
+  var sheetCols = [
+    "D",
+    "E",
+    "J"
+  ]
+
+  var block = [];
+  var object = {};
+  var backlogObjs = [];
+ 
+
+  // iterate through each column for the set range, to retrieve its values
+  for (a = 0 ; a < sheetCols.length ; a++ ) {
+    var array = [];
+    var range = sheetCols[a] + (startRow-numRows) + ":" + sheetCols[a] + startRow
+    var cells = sheet.getRange(range).getValues();
+
+    // iterate through each value, and push it to a temporary array / list
+    for (var b = 0 ; b < cells.length ; b++) {
+      if (cells[b][0] === "" && !blank) {
+        break      
+      } else {
+        array.push(cells[b][0])
+      }
+    }
+    
+    // push each temporary array into a block (or, array of arrays) like a map
+    block.push(array)
+  }
+
+  // create an object from the set of arrays above, containg the respective information
+  // about the event
+  for (c = 0 ; c < block[0].length ; c++) {
+    object = {
+      type: block[0][c],
+      source: block[1][c],
+      ref: block[2][c]
+    }
+
+    // push each object to the backlogObjs list
+    backlogObjs.push(object)
+  }
+
+  // return the list of objects
+  return backlogObjs
+
+}
+
+// getCurrentBacklog function will find references in the existing messages (in-memory)
+// backlog to match repeated ones when its time to push the events into Sheets, marking 
+// as duplicate those events that appear as repeated
+function getCurrentBacklog(entries) {
+
+  var backlogRefs = [];
+  var backlogUnix = [];
+  var curBacklogObjs = [];
+
+  // iterate through each collected message, from oldest to newest
+  for ( var i = (entries.length - 1) ; i >= 0 ; i-- ) {
+
+    // if the entry's reference ID is not present in backlogRefs, it's not a duplicate
+    if (!backlogRefs.includes(entries[i].ref)) {
+      object = {
+        unix: entries[i].unix,
+        ref: entries[i].ref,
+        dup: false
+      }
+      // add this reference ID to backlogRefs and unix time to backlogUnix
+      backlogRefs.push(entries[i].ref)
+      backlogUnix.push(entries[i].unix)
+    } else {
+      // if the reference ID was found in backlogRefs, get its last reference unix time
+      var index = backlogRefs.lastIndexOf(entries[i].ref)
+
+      if (((backlogUnix[index] * 1) + 259200000) < entries[i].unix) {
+        // if the unix time difference is lower than 3 days, the case is a duplicate
+        object = {
+          unix: entries[i].unix,
+          ref: entries[i].ref,
+          dup: true
+        }
+      } else {
+        // if the unix time is greater than 3 days, then the case is not duplicate
+        object = {
+          unix: entries[i].unix,
+          ref: entries[i].ref,
+          dup: false
+        }
+        // add this reference ID to backlogRefs and unix time to backlogUnix
+        backlogRefs.push(entries[i].ref)
+        backlogUnix.push(entries[i].unix)
+      }
+    }
+
+    // add the created object to curBacklogObjs, after the checks
+    curBacklogObjs.push(object)
+  }
+  
+  // return a list containing all created objects
+  return curBacklogObjs
+}
+
+
 // gmailMessageQuery function will query Gmail messages
 // for the set label, for the set number of days as per input
 function gmailMessageQuery(newerThan) {
@@ -402,6 +524,30 @@ function gmailMessageQuery(newerThan) {
   return messages
 }
 
+
+// handleSubjectRefs function will take in a message subject 
+// and take its reference ID from RegExp matches
+function handleSubjectRefs(subject) {
+  var match
+  var reference
+
+  // iterate through all subject ID regular expression filters
+  for ( var y = 0 ; y < subjectIDRegexp.length ; y ++) {
+
+    // when the current subject matches one of the input regexp filters,
+    // retrieve its reference ID from the matching substring and break the loop
+    if (subject.match(RegExp(subjectIDRegexp[y]))) {
+      match = subject.match(RegExp(subjectIDRegexp[y]))
+      reference = match[1]
+      break
+    }
+  }
+
+  // return reference ID from subject
+  return reference
+}
+
+
 // getLatestMessages function will cycle through the 
 // user's inbox, looking up for the messages in the defined label
 // returning the found entries according to the number of input days
@@ -411,11 +557,12 @@ function getLatestMessages(NewUser) {
   var usedThreadIDs = [];
   var message = {};
 
+  // initiate a long or short query, depending if NewUser is set to true or false
   if (NewUser == true) {
     Logger.log('Fetching messages with a long query.')
     messages = gmailMessageQuery(longQuery)
   } else {
-    Logger.log('Fetching messages with a long query.')
+    Logger.log('Fetching messages with a short query.')
     messages = gmailMessageQuery(shortQuery)
   }
   
@@ -437,6 +584,8 @@ function getLatestMessages(NewUser) {
 
           // push new threadID to array
           usedThreadIDs.push(response.threadId)
+
+          var snippet = response.snippet
           
           // iterate through its headers
           for (var x = 0 ; x < response.payload.headers.length ; x++) {
@@ -457,7 +606,24 @@ function getLatestMessages(NewUser) {
             }
           }
 
-          var snippet = response.snippet
+          // define task type and task provider as per sender
+          for (var x = 0 ; x < targetFrom.length ; x++) {
+            if (sender.match(RegExp(targetFrom[x]))) {
+              var taskType = targetTypes[x]
+              var taskSource = targetSources[x]
+              break
+            }
+          }
+
+          // exceptions in case it's necessary to look into the 
+          // message snippet to apply a different target source
+          if (taskType == targetTypes[1] && snippet.match(RegExp(targetSourceRegexp))) {
+            taskSource = targetSources[2];
+          }
+
+          // optional - retrieve the reference identifier from the subject value
+          reference = handleSubjectRefs(subject)
+      
           
           // compose a new message object with all the metadata
           message = {
@@ -466,13 +632,17 @@ function getLatestMessages(NewUser) {
                 time: new Date(response.internalDate * 1),
                 subj: subject,
                 to: to,
+                type: taskType,
+                source: taskSource,
                 sender: sender,
-                snippet: snippet
+                snippet: snippet,
+                ref: reference
               }
           
           // add the new message object to the entries array
           entries.push(message)
         }
+        
       }
     }
   }
@@ -551,59 +721,102 @@ function runGmailLabelQuery() {
   if ( latestID == 0 ) {
     NewUser = true
     Logger.log('No entries found, setting NewUser to: %s', NewUser)
+  } 
+
+  // backlog lookup will show duplicates if needed
+  var backlogObjs = [];
+  var curBacklogObjs = [];
+
+  // Sheets backlog lookup will loop through the last 50 rows by default
+  // 
+  // this block will handle all 3 types of event where the user:
+  //  - has less than 30 events listed in Sheets (so, from row 2 to nextRow-1)
+  //  - has more than 30 events listed in Sheets (so, from nextRow-31 to nextRow-1)
+  //  - has no events listed (skip Sheets backlog lookup)
+  if ( latestID != 0 && nextRow < 30) {
+    Logger.log("Performing backlog query from rows %s to %s", ((nextRow -1) - (nextRow -2)), (nextRow -1))
+
+    backlogObjs = getLatestBacklog(sheet, (nextRow - 1), (nextRow - 2))
+  } else if (latestID != 0 && nextRow > 30) {
+
+    Logger.log("Performing backlog query from rows %s to %s", ((nextRow -1) - 30), (nextRow -1))
+    backlogObjs = getLatestBacklog(sheet, (nextRow - 1), 30)
+  } else {
+
+    Logger.log("Skipping backlog query")
   }
 
   // get the newContent from a new Gmail query
   newContent = getLatestMessages(NewUser);
-  var taskType
-  var taskSource
+
+
+  // Message backlog lookup will loop through the retrieved messages from
+  // the API query, and parses them in case any duplicates are included in the batch
+  Logger.log("Performing backlog query for all fetched messages")
+  curBacklogObjs = getCurrentBacklog(newContent)
 
 
   // iterate from last to first, through newContent
   for (var i = (newContent.length - 1) ; i >= 0 ; i-- ) {
 
     // if the current message is newer than the lastest retrieved,
-    if ((newContent[i].unix / 1000) > (latestID / 1000)) {
+    if (newContent[i].unix  > latestID) {
 
-      // define task type and task provider as per sender
-      for (var x = 0 ; x < targetFrom.length ; x++) {
-        if (newContent[i].sender.match(RegExp(targetFrom[x]))) {
-          var taskType = targetTypes[x]
-          var taskSource = targetSources[x]
+      var duplicate = false
+
+      // check Sheets backlog for duplicates
+      if (backlogObjs) {
+        for ( var y = 0; y < backlogObjs.length ; y++ ) {
+          // mark as duplicate when matching:
+          //   - reference
+          //   - type
+          //   - source
+          if (backlogObjs[y].ref == newContent[i].ref && backlogObjs[y].type == newContent[i].type && backlogObjs[y].source == newContent[i].source) {
+            duplicate = true;
+            break;
+          }
         }
       }
 
-      // exceptions in case it's necessary to look into the 
-      // message snippet to apply a different target source
-      if (taskType == targetTypes[1] && newContent[i].snippet.match(RegExp(targetSourceRegexp))) {
-        taskSource = targetSources[2];
-      } 
+      // check incoming message backlog for duplicates
+      if (curBacklogObjs) {
+        for ( var y = 0 ; y < curBacklogObjs.length ; y++) {
+          // mark as duplicate is set via the getCurrentBacklog function
+          // so duplicates are taken in as evaluated in the function call
+          if (curBacklogObjs[y].unix == newContent[i].unix && curBacklogObjs[y].ref == newContent[i].ref) {
+            duplicate = curBacklogObjs[y].dup
+            break;
+          }
+        }
+      }
 
 
-      // add it to the Sheet
+      // add this content to the Sheet
       pushToSheets(
         sheet,
         nextRow,
         newContent[i].sender,
         newContent[i].to,
         newContent[i].snippet,
-        taskType,
-        taskSource,
+        newContent[i].type,
+        newContent[i].source,
         newContent[i].time,
         newContent[i].subj,
         newContent[i].id,
         newContent[i].unix,
+        newContent[i].ref,
+        duplicate
       )
       
       // increment the nextRow value
       nextRow = (nextRow + 1);
-    }
+    } 
   }
 }
 
 // pushToSheets function will have the boilerplate code to add 
 // the input data to Sheets, with the desired formatting
-function pushToSheets(sheet, newRow, sender, to, snippet, taskType, taskSource, time, subj, id, unix) {
+function pushToSheets(sheet, newRow, sender, to, snippet, taskType, taskSource, time, subj, id, unix, ref, dup) {
   sheet.getRange(newRow, 1).setValue(sender);
   sheet.getRange(newRow, 2).setValue(to);
   sheet.getRange(newRow, 3).setValue(snippet);
@@ -615,4 +828,7 @@ function pushToSheets(sheet, newRow, sender, to, snippet, taskType, taskSource, 
   sheet.getRange(newRow, 8).setValue(id);
   sheet.getRange(newRow, 9).setValue(unix);
   sheet.getRange(newRow, 9).setNumberFormat("0000000000000");
+  sheet.getRange(newRow, 10).setValue(ref);
+  sheet.getRange(newRow, 10).setNumberFormat("00000000");
+  sheet.getRange(newRow, 11).setValue(dup);
 }

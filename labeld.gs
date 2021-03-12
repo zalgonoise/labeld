@@ -245,7 +245,7 @@ function applyGmailLabels(labelID) {
       pageToken = page.nextPageToken;
     } while (pageToken)
   }
-  Logger.log('Grabbed' + messages.length +  'message batches with the query')
+  Logger.log('Grabbed ' + messages.length +  ' message batches with the query')
   
   // to retrieve only the messageIDs (from an object with .id and .threadId)
   // the fastest method is to refer to C-style for-loops

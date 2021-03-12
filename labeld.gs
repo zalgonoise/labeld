@@ -832,3 +832,236 @@ function pushToSheets(sheet, newRow, sender, to, snippet, taskType, taskSource, 
   sheet.getRange(newRow, 10).setNumberFormat("00000000");
   sheet.getRange(newRow, 11).setValue(dup);
 }
+
+////
+//
+// Gmail helper functions
+//
+////
+
+
+// queryGmail function will take in a query string and retrieves a 
+// list of objects containing message ID and thread ID
+function queryGmail(query) {
+
+  messages = [];
+
+  var pageToken
+  for (i in targetFrom) {
+    do {
+
+      // list Gmail messages by performing a query with the input query string
+      page = Gmail.Users.Messages.list('me', {
+        "q": query,
+        "maxResults": 250,
+        "pageToken": pageToken,
+      })
+      messages.push(page.messages)
+      pageToken = page.nextPageToken;
+    } while (pageToken)
+  }
+
+  // returns an encapsulated list of raw messages in blocks with 250 elements
+  return messages
+}
+
+// getIDMatrix function will take in a list of messages from queryGmail
+// and create a matrix with message ID and thread ID, in encapsulated lists
+function getIDMatrix(messages) {
+  var idMatrix = [];
+  var msgIDList = [];
+  var threadIDList = [];
+  
+  // if there are blocks in the input
+  if (messages.length > 0) {
+
+    // iterate through the input blocks
+    for (var a = 0 ; a < messages.length; a++) {
+
+      // if there are messages in the block
+      if (messages[a].length > 0) {
+
+        // iterate through each message
+        for (var b = 0 ; b < messages[a].length ; b++) {
+
+          // if message doesn't have an empty ID and thread ID
+          if ((messages[a][b]) && messages[a][b].id != "" && messages[a][b].threadId != "") {
+
+            // push the message ID and thread ID to separate lists
+            msgIDList.push(messages[a][b].id)
+            threadIDList.push(messages[a][b].threadId)
+          }
+        }
+      } 
+    }
+  }
+
+  // join the lists in another list so the matrix is formed 
+  // (both lists will contain matching indexes)
+  idMatrix.push(msgIDList, threadIDList)
+
+  // return the matrix
+  return idMatrix
+}
+
+
+// dedupeIDMatrix function will take in an idMatrix list and return a list
+// containing only the non-duplicated messages (ignores duplicated thread IDs)
+function dedupeIDMatrix(matrix) {
+  var idList = [];
+
+  var uniqueIDs = [];
+
+  // check if input isn't empty
+  if (matrix[1].length) {
+
+    // iterate through thread ID matrix
+    for (var a = 0 ; a < matrix[1].length ; a++ ) {
+
+      // if the current thread ID hasn't been added to the idList yet:
+      if (!idList.includes(matrix[1][a])) {
+        
+        // this is a unique message ID, and is added to uniqueIDs
+        // also threadID is added to idList for the next iteration
+        uniqueIDs.push(matrix[0][a])
+        idList.push(matrix[1][a])
+      }
+    }
+  }
+
+  // retrun a list of unique message IDs
+  return uniqueIDs
+}
+
+
+// breakdownMessageIDs function will take a list of uniqueIDs and break it down to
+// an incapsulated list containing 250 element blocks (maximum allowed by Gmail API)
+function breakdownMessageIDs(uniqueIDs) {
+  var blocks = [];
+  var block = [];
+
+  // check if input isn't empty
+  if (uniqueIDs.length) {
+
+    // iterate through input message IDs
+    for (var a = 0 ; a < uniqueIDs.length ; a++) {
+
+      // if the current block has fewer than 250 items
+      if (block.length < 250) {
+
+        // add ID to block
+        block.push(uniqueIDs[a])
+      } else {
+
+        // otherwise push this block to the main list and initiate a new block
+        blocks.push(block)
+        block = [];
+      }
+    }
+
+    // if at the end of the loop there are items in the current block
+    // push it to the main list
+    if (block.length > 0) {
+      blocks.push(block)
+    }
+  }
+
+  // return the encapsulated list of unique thread IDs, in sets of 250 items
+  return blocks
+}
+
+// removeGmailLabel will take in a label to remove and a query to perfom (against a label)
+// in Gmail, modifying the retrieved list of message not to contain that same label
+function removeGmailLabel(label, query) {
+
+  // retrieve encapsulated list of unique message IDs in sets of 250 items by running
+  //   - Gmail query using the input query string
+  //   - breaking down the response into an ID Matrix
+  //   - removing duplicates from ID Matrix
+  //   - breakdown unique IDs list into blocks of 250 items
+  msgIDs = breakdownMessageIDs(dedupeIDMatrix(getIDMatrix(queryGmail("label:" + query))))
+
+  // loop through each message ID block
+  for (var i = 0 ; i < msgIDs.length ; i++ ) {
+
+    // if the current block isn't empty
+    if (msgIDs[i].length > 0) {
+
+      // modify this set of messages to remove the input label
+      Gmail.Users.Messages.batchModify(
+        {
+          ids: msgIDs[i],
+          removeLabelIds: label
+        },
+        "me"
+      )
+    }
+  }
+}
+
+// removeGmailFilter function will take in a list of filters, and iterate through them
+// removing them by their ID
+function removeGmailFilter(filters) {
+
+  // check if input isn't empty
+  if (filters.length) {
+
+    // iterate through input filters
+    for (var i = 0 ; i < filters.length; i++) {
+
+      // remove the filter by its ID
+      Gmail.Users.Settings.Filters.remove("me", filters[i].id)
+    }
+  }
+
+
+}
+
+// getGmailLabel function will fetch a user's Gmail label ID, by its name
+function getGmailLabel(label) {
+    // retrieve the labels once again
+    userLabels = Gmail.Users.Labels.list("me")
+
+    // get the created label's ID as labelID
+    if ((userLabels) && (userLabels.labels)) {
+      labelID = userLabels.labels.find(x => x.name === label).id
+    }
+
+    return labelID
+}
+
+// getGmailFilter function will list the user's Filters while querying for 
+// those which contains a certain labelID, and return a list of filters
+function getGmailFilter(labelID) {
+  var filters = [];
+
+  // check for existing user-created email filters
+  var userFilters = Gmail.Users.Settings.Filters.list("me")
+  
+  // if the response is not null (no custom filters ever created)
+  if ((userFilters) && (userFilters.filter)) {
+    
+    // iterate through each filter
+    for (var i = 0 ; i < userFilters.filter.length ; i++) {
+
+      // try to find the labelID previously retrieved in the addLabelIds action
+      if ( (userFilters.filter[i].action) && (userFilters.filter[i].action.addLabelIds) && userFilters.filter[i].action.addLabelIds.length > 0) {
+
+        // loop through all label IDs
+        for (var x = 0 ; x < userFilters.filter[i].action.addLabelIds.length ; x++) {
+
+          // check if there is a match for the input label
+          if (userFilters.filter[i].action.addLabelIds[x] == labelID) {
+            
+            // if found, push this filter into the filters list
+            filters.push(userFilters.filter[i])
+          }
+        }
+      }
+    }
+  }
+
+  // return the filters list
+  return filters
+
+}

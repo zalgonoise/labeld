@@ -7,13 +7,14 @@
 class LabelD {
 
   /**
-   * @param {string} label - label is the string value for the
-   * label to work with in Gmail
+   * @param {Object} config - config is an instance of LabelDConfig
+   * with the appropriate settings to retrieve the data you need
+   * from your Gmail labels
    */
-  constructor(label) {
+  constructor(config) {
     this.user = Session.getActiveUser();
-    this.labelTag = label
-    this.mailbox = new Mailbox(this.labelTag);
+    this.labelTag = config.labelTag
+    this.mailbox = new Mailbox(config);
     this.triggers;
     this.database = new Database();
     this.backlog = new Backlog(); 
@@ -170,12 +171,12 @@ class LabelD {
  * as one of their properties (which they can call upon directly)
  */
 class LabelDConfig {
-  constructor(label) {
+  constructor(label, targets, templates, regex, prefixes) {
     this.labelTag = label || null
     /**
      * Query targets
      */
-    this.targets = {
+    this.targets = targets || {
       /**
        * "from:" address targets
        */
@@ -196,7 +197,7 @@ class LabelDConfig {
     /**
      * Data templates
      */
-    this.templates = {
+    this.templates = templates || {
       /**
        * map / matrix mapped types, as per "from:" targets
        */
@@ -217,7 +218,7 @@ class LabelDConfig {
     /**
      * Regular Expressions
      */
-    this.regex = {
+    this.regex = regex || {
       /**
        * Subject regular expressions for task sources
        */
@@ -250,11 +251,12 @@ class LabelDConfig {
     /**
      * Internal prefixes
      */
-    this.prefixes = {
+    this.prefixes = prefixes || {
       /**
        * base url for internal links
        */
       baseURL: 'https://support.business.com/ticket/'
     }
+    return this
   }
 }

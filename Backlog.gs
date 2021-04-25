@@ -161,7 +161,7 @@ class Backlog {
         var entry = db.GetEntry((db.blankRow - 1))
       }
 
-      var mb = new Mailbox()
+      var mb = new Mailbox({labelTag: ""})
       var input = mb.GetOneMessage(msgID)
 
       if (input.unix == entry) {

@@ -5,10 +5,11 @@
 class Mailbox {
 
     /**
-     * @param {string} label label - the string representation of the Gmail 
-     * label
+     * @param {Object} config - config is an instance of LabelDConfig
+     * with the appropriate settings to retrieve the data you need
+     * from your Gmail labels
      */
-    constructor(label) {
+    constructor(config) {
     this.query
     this.messageList = [];
     this.idMatrix = [];
@@ -17,8 +18,8 @@ class Mailbox {
     this.rawEntries = [];
     this.entries = [];
     this.entriesBulk = [];
-    this.labeler = new Labeler(label)
-    this.cfg = new LabelDConfig(label)
+    this.labeler = new Labeler(config.labelTag)
+    this.cfg = config
 
     /**
      * QueryFrom method will build a query string based on the input lists of 

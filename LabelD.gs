@@ -127,7 +127,7 @@ class LabelD {
        * --> Get and process messages in bulk
        * --> Run backlog.Comparison() method 
        */
-      } else if (offset => 250) {
+      } else if (offset >= 250) {
         this.mailbox.SetOffset(offset)
         this.mailbox.NestIDs(250)
         this.mailbox.BulkGetAndProcessMessages()

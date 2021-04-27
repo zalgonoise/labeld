@@ -891,13 +891,23 @@ class MessageBuilder {
           if (match = chars[i].match(RegExp(this.cfg.regex.bodyIDRegexp[0]))) {
             this.SetBodyReference(match[2])
             this.SetBodyReferenceURL(match[1])
+            this.SetLevel("N/A")
+          } else if (match = chars[i].match(RegExp(this.cfg.regex.bodyIDRegexp[4]))) {
+            this.SetBodyReference("N/A")
+            this.SetBodyReferenceURL(`${this.cfg.prefixes.baseURL}${match[1]}`)
           }
 
           if (match = chars[i].match(RegExp(this.cfg.regex.bodyIDRegexp[1]))) {
             this.SetPriority(match[1])
+          } else if ((match = chars[i].match(RegExp(this.cfg.regex.bodyIDRegexp[2])))) {
+            this.SetPriority(match[1])
           }
+
+          if (match = chars[i].match(RegExp(this.cfg.regex.bodyIDRegexp[3]))) {
+            this.SetLevel(match[1])
+          }
+
         }
-        this.SetLevel("N/A")
         return
 
       } else if (this.input.payload.parts && this.input.payload.parts.length == 1) {

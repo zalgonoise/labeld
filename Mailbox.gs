@@ -130,19 +130,22 @@ class Mailbox {
             "pageToken": pageToken,
           }
         )
+        if (page.messages && page.messages.length > 0) {
+          if (reverse) {
+            page.messages.reverse()
+          }
+          this.messageList.push(page.messages)
 
-        if (reverse) {
-          page.messages.reverse()
+          pageToken = page.nextPageToken;
+        } else {
+          pageToken = null
         }
-        this.messageList.push(page.messages)
-
-        pageToken = page.nextPageToken;
       } while (pageToken)
       Logger.log(`Grabbed ${this.messageList.length} message batches with the query`)
 
       // if reverse is passed (for example the boolean true), then the list is reversed
       // or, older events show up first
-      if (reverse) {
+      if (this.messageList && reverse) {
         this.messageList = this.messageList.reverse()
       }
     }

@@ -154,6 +154,7 @@ class LabelD {
     /**
      * LabelD runtime
      */
+    Logger.log(`LabelD Runtime: ${this.user} on label ${this.labelTag}`)
     this.GetTriggers();
 
   }

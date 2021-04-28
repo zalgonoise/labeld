@@ -87,6 +87,24 @@ class Database {
     }
 
     /**
+     * RemoveEntry method will delete a single row in Sheets,
+     * as per provided index value
+     */
+    this.RemoveEntry = function(index) {
+      var range = `A${index}:O${index}`
+      this.sheet.getRange(range).setValue("");
+    }
+
+    /**
+     * RemoveBelow method will delete all row in Sheets below the
+     * provided index value
+     */
+    this.RemoveBelow = function(index) {
+      var range = `A${index}:O99999`
+      this.sheet.getRange(range).setValue("")
+    } 
+    
+    /**
      * LatestEntry method will look through this user's sheet, and retrieve both the last empty 
      * cell's index, and the latest value from the Sheet's unix time column
      */

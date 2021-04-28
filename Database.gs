@@ -89,6 +89,8 @@ class Database {
     /**
      * RemoveEntry method will delete a single row in Sheets,
      * as per provided index value
+     * 
+     * @param {int} index index - the Sheets row value to remove
      */
     this.RemoveEntry = function(index) {
       var range = `A${index}:O${index}`
@@ -98,11 +100,14 @@ class Database {
     /**
      * RemoveBelow method will delete all row in Sheets below the
      * provided index value
+     * 
+     * @param {int} index index - the Sheets row value to reference a 
+     * removal point
      */
     this.RemoveBelow = function(index) {
       var range = `A${index}:O99999`
       this.sheet.getRange(range).setValue("")
-    } 
+    }    
     
     /**
      * LatestEntry method will look through this user's sheet, and retrieve both the last empty 

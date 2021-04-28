@@ -20,6 +20,7 @@ class Mailbox {
     this.entriesBulk = [];
     this.labeler = new Labeler(config.labelTag)
     this.cfg = config
+    this.timeout = new Timeout();
 
     /**
      * QueryFrom method will build a query string based on the input lists of 
@@ -437,6 +438,10 @@ class Mailbox {
       if (this.nestedIDs.length > 0) {
         for (var a = 0 ; a < this.nestedIDs.length; a++) {
           if (this.nestedIDs[a].length > 0) {
+            if (!this.timeout.CheckLock()) {
+              Logger.log(`Operation timed out.`)
+              return
+            }              
             Logger.log(`Processing messages on block ${a + 1}`)
 
             var db = new Database();
@@ -612,6 +617,61 @@ class Mailbox {
     }  
   }
 }
+
+
+
+/**
+ * Timeout class will take in a task's starting point
+ * and the ending point 12m30s after that.
+ * 
+ * This designates a task's end before it kicking in again
+ * after 15 minutes
+ *
+ */
+class Timeout {
+  /**
+   * @returns {Object} timeout object
+   */
+  constructor() {
+    var date = new Date()
+    
+    this.start = Math.floor((date.getTime())).toString()
+    this.end = Math.floor((date.getTime()+750000)).toString()   
+    
+    /**
+     * GetTime method will return the current Unix time
+     * 
+     * @returns {int} current Unix time
+     */
+    this.GetTime = function() {
+      var date = new Date()
+      return Math.floor((date.getTime())).toString()
+    }
+
+    /**
+     * CheckLock method will take the task's end time value
+     * and the current Unix time, to determine if the task should
+     * stop or continuing (returning true while it hasn't surpassed 
+     * the end time)
+     * 
+     * @returns {bool} whether timeout has been reached or not
+     */
+    this.CheckLock = function() {
+      var date = new Date()
+      var cur =  Math.floor((date.getTime())).toString()
+
+      if (this.end > cur) {
+        return true
+      }
+      return false
+    }
+
+    return this
+
+  }
+}
+
+
 
 /**
  * MessageBuilder class will create and update message objects

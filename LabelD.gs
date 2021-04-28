@@ -4,6 +4,12 @@
  * to create a processed backlog for messages with a 
  * certain label
  */
+/**
+ * LabelD class will be the placeholder for labeld.
+ * It manages the Gmail, Sheets and Apps Script integrations
+ * to create a processed backlog for messages with a 
+ * certain label
+ */
 class LabelD {
 
   /**
@@ -95,24 +101,47 @@ class LabelD {
        * entries in Sheets. Since all results must match, it is compared in here
        */
       var offset = this.mailbox.uniqueIDs.length - (this.database.blankRow - 2)
+      Logger.log(`The offset between Gmail and Sheets is ${offset}`)
+
+      /**
+       * If offset is a negative number, there is a Sheets overflow
+       * To mitigate this, the first action is to delete *all extra entries*,
+       * regardless.
+       * Then, it should cycle through the latest entries in Sheets while matching
+       * the input from the respective Gmail message, as per index.
+       * After the cleanup, runtime ends and should wait for the next cycle to sync up.
+       */
+      if (offset < 0) {
+        Logger.log(`Starting self-healing. Offset unexpected: ${offset}`)
+        this.database.RemoveBelow(this.database.blankRow + offset)
+        this.backlog.Matcher(this.mailbox.uniqueIDs)
+        return
+      }
 
       /**
        * + mailbox entries match the database's count 
        * --> Run backlog.Comparison() method 
+       * --> if the latest entries do not match, cycle through each entry (last to first,
+       * or newest to oldest) until it matches again, deleting the incorrect ones.
        */
       if (offset == 0) {
         if (this.backlog.Comparison(this.mailbox.GetNewestID())) {
           Logger.log("Sync OK!")
+        } else {
+          Logger.log("Sync mismatch; fetching errors")
+          this.backlog.Matcher(this.mailbox.uniqueIDs)
+          return          
         }
         
       /**
        * + there are incoming messages, fewer than 250
+       * --> Run Backlog.Matcher() as a health check
        * --> Define offset in message IDs list
        * --> Get and process messages
        * --> Run backlog.Comparison() method 
        */
       } else if (offset > 0 && offset < 250) {
-        
+        this.backlog.Matcher(this.mailbox.uniqueIDs)
         this.mailbox.SetOffset(offset)
         
         this.mailbox.GetAndProcessMessages()
@@ -123,11 +152,13 @@ class LabelD {
 
       /**
        * + there are incoming messages, more than 250
+       * --> Run Backlog.Matcher() as a health check, it skips the empty entries in Sheets
        * --> Define offset in message IDs list
        * --> Get and process messages in bulk
        * --> Run backlog.Comparison() method 
        */
       } else if (offset >= 250) {
+        this.backlog.Matcher(this.mailbox.uniqueIDs)
         this.mailbox.SetOffset(offset)
         this.mailbox.NestIDs(250)
         this.mailbox.BulkGetAndProcessMessages()

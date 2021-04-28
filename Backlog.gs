@@ -169,5 +169,46 @@ class Backlog {
       }
       return false
     }
+
+    /**
+     * Matcher method will iterate through the provided message ID list
+     * and cycle through the Sheets entries as per its index value, going from
+     * last to first (newest to oldest); taking note of how many entries aren't 
+     * matching the Gmail data, and finally removing them once a match is found 
+     * (where the data is expected to be in sync)
+     * 
+     * @param {string[]} msgIDList msgIDList - a list of message IDs, result from 
+     * processing a Gmail label query.
+     */    
+    this.Matcher = function(msgIDList) {
+      var counter = 0
+      var mb = new Mailbox({labelTag: ""})
+      var db = new Database()
+      db.LatestEntry()
+      var deletionPoint;
+            
+      for (var i = msgIDList.length - 1 ; i >= 0; i--) {
+        if (i > db.blankRow) {
+          continue
+        }
+        
+        var response = mb.GetOneMessage(msgIDList[i])
+        var entry = db.GetEntry(i + 2)
+        if (!entry) {
+          continue
+        }
+
+        if (response.unix == entry) {
+          break
+        } 
+        deletionPoint = i + 2
+        counter++
+      }
+
+      if (counter > 0) {
+        db.RemoveBelow(deletionPoint)
+        Logger.log(`Removed ${counter} corrupted entries.`)
+      }
+    }       
   }
 }

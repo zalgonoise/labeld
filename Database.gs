@@ -105,7 +105,9 @@ class Database {
      * removal point
      */
     this.RemoveBelow = function(index) {
-      var range = `A${index}:O99999`
+      this.LatestEntry()
+      
+      var range = `A${index}:O${this.blankRow}`
       this.sheet.getRange(range).setValue("")
     }    
     
